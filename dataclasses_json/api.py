@@ -86,8 +86,9 @@ class DataClassJsonMixin(abc.ABC):
                load_only=(),
                dump_only=(),
                partial: bool = False,
-               unknown=None) -> SchemaType:
-        Schema = build_schema(cls, DataClassJsonMixin, infer_missing, partial)
+               unknown=None,
+               ignore_field_name_on_serialization:bool=False) -> SchemaType:
+        Schema = build_schema(cls, DataClassJsonMixin, infer_missing, partial, ignore_field_name_on_serialization)
 
         if unknown is None:
             undefined_parameter_action = _undefined_parameter_action_safe(cls)

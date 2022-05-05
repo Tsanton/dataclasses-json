@@ -225,7 +225,7 @@ else:
     SchemaType = Schema
 
 
-def build_type(type_, options, mixin, field, cls):
+def build_type(type_, options, mixin, field, cls, ignore_field_name_on_serialization=False):
     def inner(type_, options):
         while True:
             if not _is_new_type(type_):
@@ -238,7 +238,7 @@ def build_type(type_, options, mixin, field, cls):
                 options['field_many'] = bool(
                     _is_supported_generic(field.type) and _is_collection(
                         field.type))
-                return fields.Nested(type_.schema(), **options)
+                return fields.Nested(type_.schema(ignore_field_name_on_serialization=ignore_field_name_on_serialization), **options)
             else:
                 warnings.warn(f"Nested dataclass field {field.name} of type "
                               f"{field.type} detected in "
@@ -276,7 +276,7 @@ def build_type(type_, options, mixin, field, cls):
     return inner(type_, options)
 
 
-def schema(cls, mixin, infer_missing):
+def schema(cls, mixin, infer_missing, ignore_field_name_on_serialization=False):
     schema = {}
     overrides = _user_overrides_or_exts(cls)
     # TODO check the undefined parameters and add the proper schema action
@@ -308,7 +308,7 @@ def schema(cls, mixin, infer_missing):
             if metadata.letter_case is not None:
                 options['data_key'] = metadata.letter_case(field.name)
 
-            t = build_type(type_, options, mixin, field, cls)
+            t = build_type(type_, options, mixin, field, cls, ignore_field_name_on_serialization)
             # if type(t) is not fields.Field:  # If we use `isinstance` we would return nothing.
             if field.type != typing.Optional[CatchAllVar]:
                 schema[field.name] = t
@@ -319,7 +319,8 @@ def schema(cls, mixin, infer_missing):
 def build_schema(cls: typing.Type[A],
                  mixin,
                  infer_missing,
-                 partial) -> typing.Type[SchemaType]:
+                 partial,
+                 ignore_field_name_on_serialization) -> typing.Type[SchemaType]:
     Meta = type('Meta',
                 (),
                 {'fields': tuple(field.name for field in dc_fields(cls)
@@ -337,17 +338,17 @@ def build_schema(cls: typing.Type[A],
     def dumps(self, *args, **kwargs):
         if 'cls' not in kwargs:
             kwargs['cls'] = _ExtendedEncoder
-        if "ignore_custom_naming" in kwargs and kwargs["ignore_custom_naming"]:
+        if self.ignore_field_name_on_serialization:
             for attr_name, field_obj in self.dump_fields.items():
                 field_obj.data_key = None
-        if "ignore_custom_naming" in kwargs: kwargs.pop("ignore_custom_naming")
         return Schema.dumps(self, *args, **kwargs)
 
-    def dump(self, obj, *, many=None, ignore_custom_naming=False):
+    def dump(self, obj, *, many=None):
         many = self.many if many is None else bool(many)
-        if ignore_custom_naming:
+        if self.ignore_field_name_on_serialization:
             for attr_name, field_obj in self.dump_fields.items():
                 field_obj.data_key = None
+
         dumped = Schema.dump(self, obj, many=many)
         # TODO This is hacky, but the other option I can think of is to generate a different schema
         #  depending on dump and load, which is even more hacky
@@ -364,7 +365,7 @@ def build_schema(cls: typing.Type[A],
                                                             usage="dump"))
         return dumped
 
-    schema_ = schema(cls, mixin, infer_missing)
+    schema_ = schema(cls, mixin, infer_missing, ignore_field_name_on_serialization)
     DataClassSchema: typing.Type[SchemaType] = type(
         f'{cls.__name__.capitalize()}Schema',
         (Schema,),
@@ -372,6 +373,7 @@ def build_schema(cls: typing.Type[A],
          f'make_{cls.__name__.lower()}': make_instance,
          'dumps': dumps,
          'dump': dump,
+         'ignore_field_name_on_serialization': ignore_field_name_on_serialization,
          **schema_})
 
     return DataClassSchema
