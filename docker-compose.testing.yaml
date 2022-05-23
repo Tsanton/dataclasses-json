@@ -1,0 +1,5 @@
+version: "3.9"
+
+services:
+  dataclasses-json:
+    command: py.test -v -s #-k TestSerializationIgnore #--setup-show

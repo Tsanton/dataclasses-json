@@ -1,0 +1,12 @@
+version: "3.9"
+
+services:
+  dataclasses-json:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - PYTHON_IMAGE_NAME=3.10.4-buster
+    volumes:
+      - ./:/app
+            
